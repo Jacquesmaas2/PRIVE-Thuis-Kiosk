@@ -34,7 +34,15 @@ export function CalendarView({ familyId }: CalendarViewProps) {
         )
         if (!res.ok) throw new Error('Failed to fetch events')
         const data = await res.json()
-        setEvents(data)
+        
+        // Parse date strings back into Date objects
+        const parsedEvents = data.map((event: any) => ({
+          ...event,
+          startDate: new Date(event.startDate),
+          endDate: event.endDate ? new Date(event.endDate) : null,
+        }))
+        
+        setEvents(parsedEvents)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
       } finally {
