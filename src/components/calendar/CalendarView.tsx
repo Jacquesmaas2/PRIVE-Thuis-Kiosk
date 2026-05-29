@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, List, Calendar as CalendarIcon } from 'lucide-react'
 import type { CalendarEvent } from '@/lib/ics-parser'
 
 interface CalendarViewProps {
@@ -14,10 +14,12 @@ interface EventWithSubscription extends CalendarEvent {
 }
 
 type ViewMode = 'month' | 'week' | 'day'
+type DetailView = 'visual' | 'list'
 
 export function CalendarView({ familyId }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<ViewMode>('month')
+  const [detailView, setDetailView] = useState<DetailView>('visual')
   const [events, setEvents] = useState<EventWithSubscription[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -126,6 +128,35 @@ export function CalendarView({ familyId }: CalendarViewProps) {
             </button>
           ))}
         </div>
+
+        {/* Detail view toggle for week/day */}
+        {(viewMode === 'week' || viewMode === 'day') && (
+          <div className="flex gap-2 border rounded-lg p-1">
+            <button
+              onClick={() => setDetailView('visual')}
+              title="Kalenderweergave"
+              className={`p-2 rounded transition-colors ${
+                detailView === 'visual'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-muted'
+              }`}
+            >
+              <CalendarIcon className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setDetailView('list')}
+              title="Lijstweergave"
+              className={`p-2 rounded transition-colors ${
+                detailView === 'list'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-muted'
+              }`}
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {navButtons}
       </div>
 
@@ -152,6 +183,7 @@ export function CalendarView({ familyId }: CalendarViewProps) {
           currentDate={currentDate}
           eventsByDate={eventsByDate}
           loading={loading}
+          detailView={detailView}
         />
       )}
 
@@ -161,70 +193,8 @@ export function CalendarView({ familyId }: CalendarViewProps) {
           currentDate={currentDate}
           eventsByDate={eventsByDate}
           loading={loading}
+          detailView={detailView}
         />
-      )}
-
-      {/* Events list for selected period */}
-      {!loading && events.length > 0 && (
-        <div className="mt-6 space-y-3">
-          <h3 className="text-sm font-semibold">
-            Aankomende events ({events.length})
-          </h3>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {events.map((event) => (
-              <div key={event.id} className="kiosk-card p-3 space-y-1">
-                <div className="flex items-start gap-2">
-                  <span
-                    className="inline-block h-3 w-3 rounded-full mt-0.5 flex-shrink-0"
-                    style={{ backgroundColor: event.color }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">
-                      {event.summary}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {event.subscriptionName}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {event.startDate.toLocaleDateString('nl-NL')}{' '}
-                      {event.allDay ? (
-                        <span>• Hele dag</span>
-                      ) : (
-                        <span>
-                          • {event.startDate.toLocaleTimeString('nl-NL', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                          {event.endDate && (
-                            <>
-                              {' '}
-                              -{' '}
-                              {event.endDate.toLocaleTimeString('nl-NL', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </>
-                          )}
-                        </span>
-                      )}
-                    </p>
-                    {event.location && (
-                      <p className="text-xs text-muted-foreground">
-                        📍 {event.location}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!loading && events.length === 0 && (
-        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Geen events. Voeg kalenderabonnementen toe in de instellingen.
-        </div>
       )}
     </div>
   )
@@ -340,10 +310,12 @@ function WeekView({
   currentDate,
   eventsByDate,
   loading,
+  detailView,
 }: {
   currentDate: Date
   eventsByDate: Record<string, EventWithSubscription[]>
   loading: boolean
+  detailView: DetailView
 }) {
   // Get the Monday of the current week
   const date = new Date(currentDate)
@@ -360,73 +332,172 @@ function WeekView({
 
   const weekRange = `${monday.toLocaleDateString('nl-NL')} - ${new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL')}`
 
+  // Collect all events for this week
+  const weekEvents: EventWithSubscription[] = []
+  for (const day of weekDays) {
+    const dateKey = day.toISOString().split('T')[0]
+    const dayEvents = eventsByDate[dateKey] || []
+    weekEvents.push(...dayEvents)
+  }
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">Loading...</div>
+  }
+
+  if (detailView === 'list') {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold">Week: {weekRange}</h2>
+
+        {weekEvents.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            Geen events deze week
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {weekDays.map((day) => {
+              const dateKey = day.toISOString().split('T')[0]
+              const dayEvents = (eventsByDate[dateKey] || []).sort(
+                (a, b) => a.startDate.getTime() - b.startDate.getTime()
+              )
+              const dayName = day.toLocaleDateString('nl-NL', {
+                weekday: 'long',
+                month: 'numeric',
+                day: 'numeric',
+              })
+
+              return (
+                <div
+                  key={dateKey}
+                  className={`p-4 rounded-lg border ${
+                    dayEvents.length > 0 ? 'kiosk-card' : 'border-dashed text-muted-foreground'
+                  }`}
+                >
+                  <h3 className="font-semibold text-sm capitalize mb-2">{dayName}</h3>
+
+                  {dayEvents.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Geen events</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {dayEvents.map((event) => (
+                        <EventListItem key={event.id} event={event} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Visual week view
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">Week: {weekRange}</h2>
 
-      <div className="space-y-3">
-        {weekDays.map((day) => {
-          const dateKey = day.toISOString().split('T')[0]
-          const dayEvents = eventsByDate[dateKey] || []
-          const dayName = day.toLocaleDateString('nl-NL', {
-            weekday: 'long',
-            month: 'numeric',
-            day: 'numeric',
-          })
+      <div className="border border-border rounded-lg bg-card overflow-hidden">
+        {/* Day headers */}
+        <div className="grid grid-cols-7 border-b border-border bg-muted/50">
+          {weekDays.map((day) => {
+            const dayName = day.toLocaleDateString('nl-NL', {
+              weekday: 'short',
+              day: 'numeric',
+              month: 'short',
+            })
+            const isToday =
+              day.toDateString() === new Date().toDateString()
+            return (
+              <div
+                key={day.toISOString()}
+                className={`p-3 text-center text-sm font-semibold border-r border-border last:border-r-0 ${
+                  isToday ? 'bg-primary/10 text-primary' : ''
+                }`}
+              >
+                {dayName}
+              </div>
+            )
+          })}
+        </div>
 
-          return (
-            <div key={dateKey} className="kiosk-card p-4 space-y-2">
-              <h3 className="font-semibold text-sm capitalize">{dayName}</h3>
+        {/* Time grid */}
+        <div className="divide-y divide-border">
+          {Array.from({ length: 13 }, (_, i) => i + 8).map((hour) => (
+            <div
+              key={hour}
+              className="flex divide-x divide-border"
+              style={{ minHeight: '60px' }}
+            >
+              <div className="w-14 p-2 text-xs text-muted-foreground font-medium bg-muted/30 flex-shrink-0">
+                {String(hour).padStart(2, '0')}:00
+              </div>
 
-              {loading ? (
-                <p className="text-xs text-muted-foreground">Loading...</p>
-              ) : dayEvents.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Geen events</p>
-              ) : (
-                <div className="space-y-2">
-                  {dayEvents.map((event) => (
-                    <div
-                      key={event.id}
-                      className="text-xs p-2 rounded border-l-4"
-                      style={{ borderLeftColor: event.color }}
-                    >
-                      <div className="font-medium">{event.summary}</div>
-                      <div className="text-muted-foreground">
-                        {event.allDay ? (
-                          'Hele dag'
-                        ) : (
-                          <>
-                            {event.startDate.toLocaleTimeString('nl-NL', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                            {event.endDate && (
-                              <>
-                                {' '}
-                                -{' '}
-                                {event.endDate.toLocaleTimeString('nl-NL', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </>
-                            )}
-                          </>
-                        )}
+              {weekDays.map((day) => {
+                const dateKey = day.toISOString().split('T')[0]
+                const dayEvents = eventsByDate[dateKey] || []
+                const hourEvents = dayEvents.filter((e) => {
+                  if (e.allDay) return false
+                  const startHour = e.startDate.getHours()
+                  return startHour === hour
+                })
+
+                return (
+                  <div
+                    key={dateKey}
+                    className="flex-1 p-1 border-r border-border last:border-r-0 relative"
+                  >
+                    {hourEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="text-xs p-1.5 rounded mb-1 text-white truncate font-medium cursor-pointer hover:shadow-md transition-shadow"
+                        style={{
+                          backgroundColor: event.color,
+                          opacity: 0.85,
+                        }}
+                        title={event.summary}
+                      >
+                        {event.startDate.toLocaleTimeString('nl-NL', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}{' '}
+                        {event.summary}
                       </div>
-                      <div className="text-muted-foreground text-xs">
-                        {event.subscriptionName}
-                      </div>
-                      {event.location && (
-                        <div className="text-muted-foreground">📍 {event.location}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
+          ))}
+        </div>
       </div>
+
+      {/* All-day events */}
+      {weekEvents.some((e) => e.allDay) && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Hele dag</h3>
+          <div className="space-y-2">
+            {weekEvents
+              .filter((e) => e.allDay)
+              .map((event) => (
+                <div
+                  key={event.id}
+                  className="p-3 rounded-lg border-l-4"
+                  style={{
+                    borderLeftColor: event.color,
+                    backgroundColor: `${event.color}08`,
+                  }}
+                >
+                  <div className="font-medium text-sm">{event.summary}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {event.subscriptionName}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -437,10 +508,12 @@ function DayView({
   currentDate,
   eventsByDate,
   loading,
+  detailView,
 }: {
   currentDate: Date
   eventsByDate: Record<string, EventWithSubscription[]>
   loading: boolean
+  detailView: DetailView
 }) {
   const dateKey = currentDate.toISOString().split('T')[0]
   const dayEvents = (eventsByDate[dateKey] || []).sort(
@@ -454,103 +527,222 @@ function DayView({
     day: 'numeric',
   })
 
-  // Generate hourly slots for the day
-  const hours = Array.from({ length: 24 }, (_, i) => i)
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">Loading...</div>
+  }
 
+  if (detailView === 'list') {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold capitalize">{dayName}</h2>
+
+        {dayEvents.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            Geen events vandaag
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* All-day events */}
+            {dayEvents.filter((e) => e.allDay).length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-muted-foreground">
+                  Hele dag
+                </h3>
+                {dayEvents
+                  .filter((e) => e.allDay)
+                  .map((event) => (
+                    <EventListItem key={event.id} event={event} />
+                  ))}
+              </div>
+            )}
+
+            {/* Timed events */}
+            {dayEvents.filter((e) => !e.allDay).length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-muted-foreground">
+                  Getijmde events
+                </h3>
+                {dayEvents
+                  .filter((e) => !e.allDay)
+                  .map((event) => (
+                    <EventListItem key={event.id} event={event} />
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Visual day view
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold capitalize">{dayName}</h2>
 
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      ) : dayEvents.length === 0 ? (
+      {dayEvents.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
           Geen events vandaag
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {/* All-day events */}
           {dayEvents.filter((e) => e.allDay).length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-muted-foreground">
-                Hele dag
-              </h3>
-              {dayEvents
-                .filter((e) => e.allDay)
-                .map((event) => (
-                  <div
-                    key={event.id}
-                    className="kiosk-card p-3 border-l-4"
-                    style={{ borderLeftColor: event.color }}
-                  >
-                    <div className="font-medium text-sm">{event.summary}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {event.subscriptionName}
-                    </div>
-                    {event.location && (
+            <div className="border border-border rounded-lg bg-card p-4 space-y-3">
+              <h3 className="text-sm font-semibold">Hele dag</h3>
+              <div className="space-y-2">
+                {dayEvents
+                  .filter((e) => e.allDay)
+                  .map((event) => (
+                    <div
+                      key={event.id}
+                      className="p-3 rounded-lg border-l-4"
+                      style={{
+                        borderLeftColor: event.color,
+                        backgroundColor: `${event.color}08`,
+                      }}
+                    >
+                      <div className="font-medium text-sm">{event.summary}</div>
                       <div className="text-xs text-muted-foreground">
-                        📍 {event.location}
+                        {event.subscriptionName}
                       </div>
-                    )}
-                  </div>
-                ))}
+                      {event.location && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          📍 {event.location}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
             </div>
           )}
 
-          {/* Timed events */}
-          {dayEvents.filter((e) => !e.allDay).length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-muted-foreground">
-                Events
-              </h3>
-              {dayEvents
-                .filter((e) => !e.allDay)
-                .map((event) => (
+          {/* Timed events in timeline */}
+          <div className="border border-border rounded-lg bg-card overflow-hidden">
+            <div className="divide-y divide-border">
+              {Array.from({ length: 16 }, (_, i) => i + 6).map((hour) => {
+                const hourEvents = dayEvents.filter((e) => {
+                  if (e.allDay) return false
+                  const startHour = e.startDate.getHours()
+                  return startHour === hour
+                })
+
+                return (
                   <div
-                    key={event.id}
-                    className="kiosk-card p-3 border-l-4"
-                    style={{ borderLeftColor: event.color }}
+                    key={hour}
+                    className="flex min-h-20"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-sm">{event.summary}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {event.startDate.toLocaleTimeString('nl-NL', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                          {event.endDate && (
-                            <>
-                              {' '}
-                              -{' '}
-                              {event.endDate.toLocaleTimeString('nl-NL', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {event.subscriptionName}
-                        </div>
-                        {event.location && (
-                          <div className="text-xs text-muted-foreground">
-                            📍 {event.location}
+                    <div className="w-16 p-3 text-xs text-muted-foreground font-medium bg-muted/30 flex-shrink-0 border-r border-border text-center">
+                      {String(hour).padStart(2, '0')}:00
+                    </div>
+                    <div className="flex-1 p-3 space-y-2 divide-y divide-border/50">
+                      {hourEvents.length > 0 ? (
+                        hourEvents.map((event) => (
+                          <div
+                            key={event.id}
+                            className="pt-2 first:pt-0"
+                          >
+                            <div
+                              className="p-3 rounded-lg text-white text-sm font-medium hover:shadow-md transition-shadow"
+                              style={{
+                                backgroundColor: event.color,
+                                opacity: 0.85,
+                              }}
+                            >
+                              <div className="font-semibold">
+                                {event.startDate.toLocaleTimeString('nl-NL', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}{' '}
+                                {event.endDate && (
+                                  <>
+                                    -{' '}
+                                    {event.endDate.toLocaleTimeString('nl-NL', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </>
+                                )}
+                              </div>
+                              <div className="font-medium">{event.summary}</div>
+                              <div className="text-xs opacity-90 mt-1">
+                                {event.subscriptionName}
+                              </div>
+                              {event.location && (
+                                <div className="text-xs opacity-90 mt-1">
+                                  📍 {event.location}
+                                </div>
+                              )}
+                              {event.description && (
+                                <p className="text-xs opacity-90 mt-2">
+                                  {event.description.substring(0, 100)}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        )}
-                        {event.description && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {event.description}
-                          </p>
-                        )}
-                      </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-muted-foreground">-</div>
+                      )}
                     </div>
                   </div>
-                ))}
+                )
+              })}
             </div>
-          )}
+          </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Event List Item Component ───
+
+function EventListItem({ event }: { event: EventWithSubscription }) {
+  return (
+    <div
+      className="text-xs p-3 rounded-lg border-l-4"
+      style={{
+        borderLeftColor: event.color,
+        backgroundColor: `${event.color}08`,
+      }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-sm">{event.summary}</div>
+          <div className="text-muted-foreground mt-1">
+            {event.allDay ? (
+              'Hele dag'
+            ) : (
+              <>
+                {event.startDate.toLocaleTimeString('nl-NL', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+                {event.endDate && (
+                  <>
+                    {' '}
+                    -{' '}
+                    {event.endDate.toLocaleTimeString('nl-NL', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          <div className="text-muted-foreground">{event.subscriptionName}</div>
+          {event.location && (
+            <div className="text-muted-foreground">📍 {event.location}</div>
+          )}
+          {event.description && (
+            <p className="text-muted-foreground mt-2">
+              {event.description.substring(0, 150)}
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
