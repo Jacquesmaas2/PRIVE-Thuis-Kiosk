@@ -17,6 +17,8 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetNotice, setResetNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -43,6 +45,35 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
 
     router.push(redirectTo)
     router.refresh()
+  }
+
+  async function handleForgotPassword() {
+    setError(null)
+    setResetNotice(null)
+
+    const emailCheck = loginSchema.shape.email.safeParse(email)
+    if (!emailCheck.success) {
+      setError('Vul eerst een geldig e-mailadres in.')
+      return
+    }
+
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ??
+      (typeof window !== 'undefined' ? window.location.origin : '')
+
+    setResetLoading(true)
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(emailCheck.data, {
+      redirectTo: `${baseUrl}/reset-password`,
+    })
+
+    if (resetError) {
+      setError('Reset e-mail versturen is mislukt. Probeer het opnieuw.')
+      setResetLoading(false)
+      return
+    }
+
+    setResetNotice('Als dit e-mailadres bekend is, hebben we een reset-link gestuurd.')
+    setResetLoading(false)
   }
 
   return (
@@ -92,6 +123,23 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
               placeholder="••••••••"
             />
           </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              disabled={resetLoading}
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline disabled:opacity-50"
+            >
+              {resetLoading ? 'Verzenden…' : 'Wachtwoord vergeten?'}
+            </button>
+          </div>
+
+          {resetNotice && (
+            <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+              {resetNotice}
+            </div>
+          )}
 
           {/* Error */}
           {error && (
