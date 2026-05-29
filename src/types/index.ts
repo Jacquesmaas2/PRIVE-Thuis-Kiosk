@@ -22,6 +22,7 @@ export type Checklist = Database['public']['Tables']['checklists']['Row']
 export type ChecklistItem = Database['public']['Tables']['checklist_items']['Row']
 export type ChecklistEntry = Database['public']['Tables']['checklist_entries']['Row']
 export type CalendarEvent = Database['public']['Tables']['calendar_events']['Row']
+export type CalendarSubscription = Database['public']['Tables']['calendar_subscriptions']['Row']
 
 // Re-export enum types
 export type {

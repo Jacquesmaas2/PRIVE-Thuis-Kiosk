@@ -312,6 +312,19 @@ export interface Database {
           end_at?: string | null; all_day?: boolean; color?: string | null; updated_at?: string
         }
       }
+      calendar_subscriptions: {
+        Row: {
+          id: string; family_id: string; name: string; url: string; color: string
+          created_by: string; created_at: string; updated_at: string
+        }
+        Insert: {
+          id?: string; family_id: string; name: string; url: string; color?: string
+          created_by: string; created_at?: string; updated_at?: string
+        }
+        Update: {
+          name?: string; url?: string; color?: string; updated_at?: string
+        }
+      }
     }
     Views: {
       user_points_balance: {
