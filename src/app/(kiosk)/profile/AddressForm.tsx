@@ -8,8 +8,6 @@ interface AddressData {
   city: string | null
   postal_code: string | null
   country: string
-  latitude: number | null
-  longitude: number | null
 }
 
 interface Props {
@@ -23,8 +21,6 @@ export function AddressForm({ initial }: Props) {
     city: initial.city ?? '',
     postal_code: initial.postal_code ?? '',
     country: initial.country ?? 'NL',
-    latitude: initial.latitude != null ? String(initial.latitude) : '',
-    longitude: initial.longitude != null ? String(initial.longitude) : '',
   })
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -48,8 +44,6 @@ export function AddressForm({ initial }: Props) {
       city: form.city || null,
       postal_code: form.postal_code || null,
       country: form.country || 'NL',
-      latitude: form.latitude ? parseFloat(form.latitude) : null,
-      longitude: form.longitude ? parseFloat(form.longitude) : null,
     }
 
     try {
@@ -105,37 +99,11 @@ export function AddressForm({ initial }: Props) {
                        focus:outline-none focus:ring-2 focus:ring-primary transition-shadow"
           />
         </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">
-            Breedtegraad{' '}
-            <span className="text-muted-foreground">(voor weerwidget)</span>
-          </label>
-          <input
-            type="number"
-            step="any"
-            value={form.latitude}
-            onChange={update('latitude')}
-            placeholder="52.3676"
-            className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm
-                       focus:outline-none focus:ring-2 focus:ring-primary transition-shadow"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">
-            Lengtegraad{' '}
-            <span className="text-muted-foreground">(voor weerwidget)</span>
-          </label>
-          <input
-            type="number"
-            step="any"
-            value={form.longitude}
-            onChange={update('longitude')}
-            placeholder="4.9041"
-            className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm
-                       focus:outline-none focus:ring-2 focus:ring-primary transition-shadow"
-          />
-        </div>
       </div>
+
+      <p className="text-sm text-muted-foreground">
+        De coördinaten voor het weerwidget worden automatisch bepaald op basis van dit adres.
+      </p>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
       {saved && <p className="text-sm text-green-600 dark:text-green-400">Adres opgeslagen ✓</p>}

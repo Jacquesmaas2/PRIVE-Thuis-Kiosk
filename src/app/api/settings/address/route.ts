@@ -1,6 +1,7 @@
 import { createClient, getAuthProfile } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { geocodeAddress } from '@/lib/geocoding'
 import { z } from 'zod'
 
 const addressSchema = z.object({
@@ -8,8 +9,6 @@ const addressSchema = z.object({
   city: z.string().max(100).nullable().optional(),
   postal_code: z.string().max(20).nullable().optional(),
   country: z.string().length(2).default('NL'),
-  latitude: z.number().min(-90).max(90).nullable().optional(),
-  longitude: z.number().min(-180).max(180).nullable().optional(),
 })
 
 // PATCH /api/settings/address
@@ -28,6 +27,33 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 })
     }
 
+    const normalizedAddress = {
+      address_line1: parsed.data.address_line1?.trim() || null,
+      city: parsed.data.city?.trim() || null,
+      postal_code: parsed.data.postal_code?.trim() || null,
+      country: parsed.data.country,
+    }
+
+    const hasAddress = Boolean(
+      normalizedAddress.address_line1 || normalizedAddress.city || normalizedAddress.postal_code,
+    )
+
+    let coordinates: { latitude: number | null; longitude: number | null } = {
+      latitude: null,
+      longitude: null,
+    }
+    if (hasAddress) {
+      const geocoded = await geocodeAddress(normalizedAddress)
+      if (!geocoded) {
+        return NextResponse.json(
+          { error: 'Adres niet gevonden. Controleer straat, postcode en stad.' },
+          { status: 400 },
+        )
+      }
+
+      coordinates = geocoded
+    }
+
     const admin = createAdmin(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -35,7 +61,10 @@ export async function PATCH(req: Request) {
 
     const { error } = await admin
       .from('family_settings')
-      .update(parsed.data)
+      .update({
+        ...normalizedAddress,
+        ...coordinates,
+      })
       .eq('family_id', profile.family_id!)
 
     if (error) {
