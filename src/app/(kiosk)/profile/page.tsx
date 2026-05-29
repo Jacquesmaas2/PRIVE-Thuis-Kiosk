@@ -5,13 +5,21 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { PointsBadge } from '@/components/shared/PointsBadge'
 import { Badge } from '@/components/ui/badge'
-import { MapPin, Users } from 'lucide-react'
+import { MapPin, Users, Calendar } from 'lucide-react'
 import { ProfileActions } from './ProfileActions'
 import { ProfileCardActions } from './ProfileCardActions'
 import { PendingInvitations } from './PendingInvitations'
 import { AddressForm } from './AddressForm'
+import { CalendarSubscriptionsManager } from '@/components/calendar/CalendarSubscriptionsManager'
+import type { Database } from '@/types/database.types'
 
 export const metadata = { title: 'Profielen | Thuis Kiosk' }
+
+type FamilySettings = {
+  address_line1: string | null; city: string | null; postal_code: string | null
+  country: string; latitude: number | null; longitude: number | null
+}
+type CalendarSubscription = Database['public']['Tables']['calendar_subscriptions']['Row']
 
 export default async function ProfilePage() {
   const { userId, profile } = await getAuthProfile()
@@ -52,10 +60,6 @@ export default async function ProfilePage() {
   }
 
   // Fetch family settings for home address (parents only)
-  type FamilySettings = {
-    address_line1: string | null; city: string | null; postal_code: string | null
-    country: string; latitude: number | null; longitude: number | null
-  }
   let familySettings: FamilySettings | null = null
   if (profile.role === 'parent') {
     const { data } = await supabase
@@ -64,6 +68,17 @@ export default async function ProfilePage() {
       .eq('family_id', profile.family_id!)
       .single()
     familySettings = (data as FamilySettings | null) ?? null
+  }
+
+  // Fetch calendar subscriptions (parents only)
+  let subscriptions: CalendarSubscription[] = []
+  if (profile.role === 'parent') {
+    const { data } = await supabase
+      .from('calendar_subscriptions')
+      .select('*')
+      .eq('family_id', profile.family_id!)
+      .order('created_at', { ascending: false })
+    subscriptions = (data ?? []) as CalendarSubscription[]
   }
 
   // Build a map of which kid profiles have a PIN set (for UI indicator)
@@ -144,6 +159,25 @@ export default async function ProfilePage() {
                 address_line1: null, city: null, postal_code: null,
                 country: 'NL', latitude: null, longitude: null,
               }}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* Calendar subscriptions — parent only */}
+      {isParent && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Kalenderabonnementen
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Beheer kalenderabonnementen die op de familiepagina worden weergegeven.
+          </p>
+          <div className="kiosk-card p-5">
+            <CalendarSubscriptionsManager
+              initialSubscriptions={subscriptions}
+              canManage={true}
             />
           </div>
         </section>
